@@ -3,9 +3,11 @@ name = "lw-lwnx"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = []
 
-[dependencies]
+[target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["impl-default", "ioapiset"] }
-# winapi = "0.3.9"
+
+[target.'cfg(unix)'.dependencies]
 serialport = "4"

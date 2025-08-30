@@ -1,10 +1,18 @@
 use std::{thread, time::Duration};
-
+use std::sync::WaitTimeoutResult;
 use serialport::{available_ports, SerialPort, SerialPortType};
-use win32_serialport::WinSerialPort;
 
 mod lwnx;
+
+#[cfg(windows)]
 mod win32_serialport;
+#[cfg(windows)]
+use win32_serialport::WinSerialPort as SerialPort;
+
+#[cfg(unix)]
+mod linux_serialport;
+#[cfg(unix)]
+use linux_serialport::LinuxSerialPort as MySerialPort;
 
 /// Implementation example for the Rust serialport crate.
 impl lwnx::UserPlatform for Box<dyn SerialPort> {
@@ -28,7 +36,7 @@ impl lwnx::UserPlatform for Box<dyn SerialPort> {
 }
 
 /// Implementation example for the LightWare serial port implementation.
-impl lwnx::UserPlatform for &WinSerialPort {
+impl lwnx::UserPlatform for MySerialPort {
     fn write_callback(&mut self, data: &[u8]) -> Result<usize, lwnx::LwnxError> {
         match self.write(data) {
             Ok(bytes_written) => Ok(bytes_written as usize),
@@ -50,11 +58,11 @@ impl lwnx::UserPlatform for &WinSerialPort {
 
 /// Implementation example for a user struct that references a serial port.
 struct MyPlatform<'a> {
-    port: &'a WinSerialPort,
+    port: &'a mut MySerialPort,
     trace_packet: bool,
 }
 
-impl lwnx::UserPlatform for &MyPlatform<'_> {
+impl lwnx::UserPlatform for MyPlatform<'_> {
     fn write_callback(&mut self, data: &[u8]) -> Result<usize, lwnx::LwnxError> {
         if self.trace_packet {
             println!("Writing bytes: {:X?}", data);
@@ -99,15 +107,19 @@ fn main() -> Result<(), String> {
         };
     }
 
-    let mut port = WinSerialPort::new();
-    port.connect("COM5", 921600)?;
-    // let mut device_context = lwnx::DeviceContext::new(&port);
+    let mut port = MySerialPort::new();
 
+    #[cfg(windows)]
+    port.connect("COM5", 921600)?;
+
+    #[cfg(unix)]
+    port.connect("/dev/ttyACM0", 921600)?;
+    
     let my_platform = MyPlatform {
-        port: &port,
+        port: &mut port,
         trace_packet: true,
     };
-    let mut device_context = lwnx::DeviceContext::new(&my_platform);
+    let mut device_context = lwnx::DeviceContext::new(my_platform);
 
     // let mut port = serialport::new("COM5", 921600)
     //     .timeout(Duration::from_millis(1))
